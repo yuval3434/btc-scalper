@@ -52,6 +52,11 @@ class Position:
     fill_size: float = 0.0
     entry_time: Optional[datetime] = None
 
+    # Context captured at entry -- used for trade log analysis.
+    imbalance_at_entry: float = 0.0
+    mid_at_entry: float = 0.0
+    secs_to_expiry_at_entry: float = 0.0
+
     # Set after the take-profit sell order is placed.
     sell_order_id: str = ""
     tp_price: float = 0.0

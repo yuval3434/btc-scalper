@@ -31,6 +31,7 @@ from datetime import datetime, timezone
 
 import config
 import notifier
+import trade_log
 from order_executor import OrderExecutor, _round_to_tick
 from state import PositionState, Position, StrategyState
 
@@ -293,6 +294,9 @@ class ScalpingStrategy:
                 token_id=self._token_id,
                 tick_size=self._tick_size,
                 buy_order_id=order_id,
+                imbalance_at_entry=imbalance_ratio,
+                mid_at_entry=mid_price,
+                secs_to_expiry_at_entry=remaining,
             )
             self._state.phase = PositionState.BUY_ORDER_PLACED
 
@@ -447,6 +451,18 @@ class ScalpingStrategy:
                     f"PnL: `+${pnl:.4f}`\n"
                     f"Session: `${session_pnl:+.4f}` ({n_wins}/{n_trades} wins)"
                 ))
+                trade_log.record(
+                    market_slug=self._slug, token_id=self._token_id,
+                    fill_price=pos.fill_price, shares=pos.fill_size,
+                    position_usdc=config.POSITION_SIZE_USDC,
+                    tp_price=pos.tp_price,
+                    sl_price=round(pos.fill_price - config.SL_PRICE_OFFSET, 4),
+                    exit_price=fill_price, exit_reason="tp", pnl=pnl,
+                    session_pnl=session_pnl, entry_time=pos.entry_time,
+                    imbalance_at_entry=pos.imbalance_at_entry,
+                    mid_at_entry=pos.mid_at_entry,
+                    secs_to_expiry_at_entry=pos.secs_to_expiry_at_entry,
+                )
                 async with self._state._lock:
                     if self._state.position:
                         self._state.position.realized_pnl = pnl
@@ -481,6 +497,18 @@ class ScalpingStrategy:
                 f"PnL: `+${pnl:.4f}`\n"
                 f"Session: `${session_pnl:+.4f}` ({n_wins}/{n_trades} wins)"
             ))
+            trade_log.record(
+                market_slug=self._slug, token_id=self._token_id,
+                fill_price=pos.fill_price, shares=pos.fill_size,
+                position_usdc=config.POSITION_SIZE_USDC,
+                tp_price=pos.tp_price,
+                sl_price=round(pos.fill_price - config.SL_PRICE_OFFSET, 4),
+                exit_price=tp_fill_price, exit_reason="tp", pnl=pnl,
+                session_pnl=session_pnl, entry_time=pos.entry_time,
+                imbalance_at_entry=pos.imbalance_at_entry,
+                mid_at_entry=pos.mid_at_entry,
+                secs_to_expiry_at_entry=pos.secs_to_expiry_at_entry,
+            )
             async with self._state._lock:
                 if self._state.position:
                     self._state.position.realized_pnl = pnl
@@ -558,6 +586,18 @@ class ScalpingStrategy:
             f"PnL: `${est_pnl:.4f}`\n"
             f"Session: `${session_pnl:+.4f}` ({n_wins}/{n_trades} wins)"
         ))
+        trade_log.record(
+            market_slug=self._slug, token_id=self._token_id,
+            fill_price=pos.fill_price, shares=pos.fill_size,
+            position_usdc=config.POSITION_SIZE_USDC,
+            tp_price=pos.tp_price,
+            sl_price=round(pos.fill_price - config.SL_PRICE_OFFSET, 4),
+            exit_price=est_exit_price, exit_reason=reason, pnl=est_pnl,
+            session_pnl=session_pnl, entry_time=pos.entry_time,
+            imbalance_at_entry=pos.imbalance_at_entry,
+            mid_at_entry=pos.mid_at_entry,
+            secs_to_expiry_at_entry=pos.secs_to_expiry_at_entry,
+        )
 
         async with self._state._lock:
             if self._state.position:
