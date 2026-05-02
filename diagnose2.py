@@ -11,7 +11,13 @@ from eth_account import Account
 
 load_dotenv()
 
-POLYGON_RPC  = "https://polygon-rpc.com"
+POLYGON_RPCS = [
+    "https://polygon-rpc.com",
+    "https://rpc-mainnet.matic.quiknode.pro",
+    "https://rpc.ankr.com/polygon",
+    "https://polygon.llamarpc.com",
+    "https://1rpc.io/matic",
+]
 PRIVATE_KEY  = os.getenv("PRIVATE_KEY", "")
 FUNDER       = os.getenv("FUNDER_ADDRESS", "").strip()
 
@@ -21,9 +27,19 @@ if not PRIVATE_KEY:
 signer  = Account.from_key(PRIVATE_KEY).address
 funder  = FUNDER or signer
 
-w3 = Web3(Web3.HTTPProvider(POLYGON_RPC))
-if not w3.is_connected():
-    raise SystemExit("Cannot connect to Polygon RPC")
+w3 = None
+for rpc in POLYGON_RPCS:
+    try:
+        _w3 = Web3(Web3.HTTPProvider(rpc, request_kwargs={"timeout": 10}))
+        if _w3.is_connected():
+            w3 = _w3
+            print(f"Connected via: {rpc}")
+            break
+    except Exception:
+        continue
+
+if w3 is None:
+    raise SystemExit("Cannot connect to any Polygon RPC. Check internet connection.")
 print(f"Connected to Polygon (block {w3.eth.block_number})\n")
 
 cfg = get_contract_config(137)
