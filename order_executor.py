@@ -116,30 +116,22 @@ class LiveOrderExecutor(OrderExecutor):
         size: float,
         tick_size: float,
     ) -> str:
-        from py_clob_client.clob_types import MarketOrderArgs, OrderType
+        from py_clob_client.clob_types import MarketOrderArgs
 
-        # Use MarketOrderArgs (same as market sell) to avoid the py_clob_client
-        # bug where OrderArgs + FAK passes OrderType as 'options', causing
-        # AttributeError: 'str' object has no attribute 'tick_size'.
-        # For market buys, amount is USDC to spend (price * shares).
+        # This version of py_clob_client removed order_type as a parameter --
+        # the second arg is now CreateOrderOptions, not OrderType.
+        # MarketOrderArgs implies immediate-fill (FAK) behavior on its own.
         usdc_amount = round(price * size, 2)
         logger.info(
-            "[LIVE] Market BUY (FAK)  token=...%s  price=%.4f  usdc=%.2f",
-            token_id[-6:],
-            price,
-            usdc_amount,
+            "[LIVE] Market BUY  token=...%s  price=%.4f  usdc=%.2f",
+            token_id[-6:], price, usdc_amount,
         )
 
         loop = asyncio.get_running_loop()
         resp = await loop.run_in_executor(
             None,
             lambda: self._client.create_and_post_order(
-                MarketOrderArgs(
-                    token_id=token_id,
-                    amount=usdc_amount,
-                    side="BUY",
-                ),
-                OrderType.FAK,
+                MarketOrderArgs(token_id=token_id, amount=usdc_amount, side="BUY"),
             ),
         )
         order_id = resp.get("orderID") or resp.get("id") or str(resp)
@@ -153,27 +145,19 @@ class LiveOrderExecutor(OrderExecutor):
         size: float,
         tick_size: float,
     ) -> str:
-        from py_clob_client.clob_types import OrderArgs, OrderType
+        from py_clob_client.clob_types import OrderArgs
 
         snapped_price = _round_to_tick(price, tick_size)
         logger.info(
-            "[LIVE] Limit SELL token=…%s  price=%.4f  size=%.2f",
-            token_id[-6:],
-            snapped_price,
-            size,
+            "[LIVE] Limit SELL  token=...%s  price=%.4f  size=%.2f",
+            token_id[-6:], snapped_price, size,
         )
 
         loop = asyncio.get_running_loop()
         resp = await loop.run_in_executor(
             None,
             lambda: self._client.create_and_post_order(
-                OrderArgs(
-                    token_id=token_id,
-                    price=snapped_price,
-                    size=size,
-                    side="SELL",
-                ),
-                OrderType.GTC,
+                OrderArgs(token_id=token_id, price=snapped_price, size=size, side="SELL"),
             ),
         )
         order_id = resp.get("orderID") or resp.get("id") or str(resp)
@@ -185,24 +169,15 @@ class LiveOrderExecutor(OrderExecutor):
         token_id: str,
         size: float,
     ) -> str:
-        from py_clob_client.clob_types import MarketOrderArgs, OrderType
+        from py_clob_client.clob_types import MarketOrderArgs
 
-        logger.info(
-            "[LIVE] Market SELL (stop) token=…%s  size=%.2f",
-            token_id[-6:],
-            size,
-        )
+        logger.info("[LIVE] Market SELL (stop)  token=...%s  size=%.2f", token_id[-6:], size)
 
         loop = asyncio.get_running_loop()
         resp = await loop.run_in_executor(
             None,
             lambda: self._client.create_and_post_order(
-                MarketOrderArgs(
-                    token_id=token_id,
-                    amount=size,
-                    side="SELL",
-                ),
-                OrderType.FAK,
+                MarketOrderArgs(token_id=token_id, amount=size, side="SELL"),
             ),
         )
         order_id = resp.get("orderID") or resp.get("id") or str(resp)
