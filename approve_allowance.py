@@ -11,11 +11,12 @@ You only need to run it again if you change wallets.
 import os
 from dotenv import load_dotenv
 from py_clob_client_v2 import ApiCreds, ClobClient
+from py_clob_client_v2.clob_types import AssetType, BalanceAllowanceParams
 
 load_dotenv()
 
-CLOB_HOST  = "https://clob.polymarket.com"
-CHAIN_ID   = 137
+CLOB_HOST       = "https://clob.polymarket.com"
+CHAIN_ID        = 137
 PRIVATE_KEY     = os.getenv("PRIVATE_KEY", "")
 API_KEY         = os.getenv("API_KEY", "")
 API_SECRET      = os.getenv("API_SECRET", "")
@@ -38,11 +39,18 @@ client = ClobClient(
     creds=creds,
 )
 
-print("Checking current balance / allowance...")
-bal = client.get_balance_allowance()
+params = BalanceAllowanceParams(asset_type=AssetType.COLLATERAL)
+
+print("Checking current pUSD balance / allowance...")
+bal = client.get_balance_allowance(params=params)
 print("Current:", bal)
 
 print("\nSending approval transaction (sets max allowance for pUSD)...")
-result = client.update_balance_allowance()
+result = client.update_balance_allowance(params=params)
 print("Done:", result)
+
+print("\nVerifying updated allowance...")
+bal2 = client.get_balance_allowance(params=params)
+print("After:", bal2)
+
 print("\nAll good! You can now start the bot.")
