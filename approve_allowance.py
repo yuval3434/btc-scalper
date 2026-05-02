@@ -18,6 +18,7 @@ load_dotenv()
 CLOB_HOST       = "https://clob.polymarket.com"
 CHAIN_ID        = 137
 PRIVATE_KEY     = os.getenv("PRIVATE_KEY", "")
+FUNDER_ADDRESS  = os.getenv("FUNDER_ADDRESS", "") or None
 API_KEY         = os.getenv("API_KEY", "")
 API_SECRET      = os.getenv("API_SECRET", "")
 API_PASSPHRASE  = os.getenv("API_PASSPHRASE", "")
@@ -26,6 +27,8 @@ if not PRIVATE_KEY:
     raise SystemExit("ERROR: PRIVATE_KEY not set in .env")
 
 print("Connecting to Polymarket V2 CLOB...")
+print(f"Funder address: {FUNDER_ADDRESS or '(same as signer)'}")
+
 creds = ApiCreds(
     api_key=API_KEY,
     api_secret=API_SECRET,
@@ -37,6 +40,7 @@ client = ClobClient(
     chain_id=CHAIN_ID,
     key=PRIVATE_KEY,
     creds=creds,
+    funder=FUNDER_ADDRESS,   # <-- critical: approves allowance for funder's pUSD
 )
 
 params = BalanceAllowanceParams(asset_type=AssetType.COLLATERAL)

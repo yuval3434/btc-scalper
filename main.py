@@ -156,6 +156,7 @@ def _build_clob_client():
             chain_id=config.CHAIN_ID,
             key=config.PRIVATE_KEY,
             creds=creds,
+            funder=config.FUNDER_ADDRESS or None,
         )
         logger.info("CLOB client (V2) authenticated with existing L2 credentials.")
     else:
@@ -164,6 +165,7 @@ def _build_clob_client():
             host=config.CLOB_HOST,
             chain_id=config.CHAIN_ID,
             key=config.PRIVATE_KEY,
+            funder=config.FUNDER_ADDRESS or None,
         )
         creds = l1_client.create_or_derive_api_key()
         # Step 2: Fully-authenticated V2 client.
@@ -172,6 +174,7 @@ def _build_clob_client():
             chain_id=config.CHAIN_ID,
             key=config.PRIVATE_KEY,
             creds=creds,
+            funder=config.FUNDER_ADDRESS or None,
         )
         logger.info(
             "L2 credentials derived from private key (V2). "
