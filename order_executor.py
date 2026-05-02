@@ -120,18 +120,36 @@ class LiveOrderExecutor(OrderExecutor):
         size: float,
         tick_size: float,
     ) -> str:
+        from decimal import ROUND_DOWN, Decimal
+
         from py_clob_client_v2 import OrderArgs, OrderType, PartialCreateOrderOptions, Side
 
         snapped_price = _round_to_tick(price, tick_size)
+
+        # Polymarket V2 precision rules:
+        #   taker amount (shares)  → max 4 decimal places
+        #   maker amount (USDC)    → max 2 decimal places
+        # Enforce via Decimal arithmetic to avoid IEEE-754 drift.
+        size_dec = Decimal(str(size)).quantize(Decimal("0.0001"), rounding=ROUND_DOWN)
+        maker_dec = (Decimal(str(snapped_price)) * size_dec).quantize(
+            Decimal("0.01"), rounding=ROUND_DOWN
+        )
+        # Back-calculate size so maker amount is exact at 2 d.p.
+        if Decimal(str(snapped_price)) > 0:
+            size_dec = (maker_dec / Decimal(str(snapped_price))).quantize(
+                Decimal("0.0001"), rounding=ROUND_DOWN
+            )
+        size_clean = float(size_dec)
+
         logger.info(
-            "[LIVE] Market BUY  token=...%s  price=%.4f  size=%.2f",
-            token_id[-6:], snapped_price, size,
+            "[LIVE] Market BUY  token=...%s  price=%.4f  size=%.4f  maker_usdc=%.2f",
+            token_id[-6:], snapped_price, size_clean, float(maker_dec),
         )
 
         order_args = OrderArgs(
             token_id=token_id,
             price=snapped_price,
-            size=size,
+            size=size_clean,
             side=Side.BUY,
         )
         options = PartialCreateOrderOptions(tick_size=str(tick_size))
