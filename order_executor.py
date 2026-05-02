@@ -3,10 +3,11 @@ order_executor.py -- Abstract order execution interface with live and dry-run
 implementations.
 
 All strategy code calls OrderExecutor methods exclusively -- the strategy
-never imports py_clob_client directly. This makes dry-run testing trivial
+never imports py_clob_client_v2 directly. This makes dry-run testing trivial
 (swap one object at construction time) and keeps the strategy logic clean.
 
-LiveOrderExecutor wraps py_clob_client:
+LiveOrderExecutor wraps py_clob_client_v2.ClobClient (Polymarket V2 API,
+migrated 2026-04-28):
   - Limit orders use OrderType.GTC which maps to maker/post-only semantics
     on Polymarket. If the order would immediately cross the spread it is
     rejected -- desired behaviour, prevents taker fees.
@@ -100,10 +101,13 @@ class OrderExecutor(ABC):
 
 class LiveOrderExecutor(OrderExecutor):
     """
-    Wraps py_clob_client.ClobClient for real order submission on Polymarket.
+    Wraps py_clob_client_v2.ClobClient for real order submission on Polymarket.
 
-    The ClobClient instance must already be authenticated (set_api_creds
-    called) before this executor is constructed.
+    The ClobClient instance must already be fully authenticated (L1 key +
+    L2 creds passed at construction) before this executor is constructed.
+
+    V2 API uses a single create_and_post_order() call instead of the old
+    two-step create_order() + post_order() pattern.
     """
 
     def __init__(self, clob_client: "ClobClient") -> None:  # type: ignore[name-defined]
@@ -116,7 +120,7 @@ class LiveOrderExecutor(OrderExecutor):
         size: float,
         tick_size: float,
     ) -> str:
-        from py_clob_client.clob_types import OrderArgs, OrderType
+        from py_clob_client_v2 import OrderArgs, OrderType, PartialCreateOrderOptions, Side
 
         snapped_price = _round_to_tick(price, tick_size)
         logger.info(
@@ -124,17 +128,21 @@ class LiveOrderExecutor(OrderExecutor):
             token_id[-6:], snapped_price, size,
         )
 
-        # options=None: client auto-fetches tick_size and neg_risk from the API,
-        # ensuring the order is signed for the correct exchange contract.
-        # BTC up/down markets are neg_risk markets -- hardcoding neg_risk=False
-        # would sign against the wrong contract and produce order_version_mismatch.
-        order_args = OrderArgs(token_id=token_id, price=snapped_price, size=size, side="BUY")
-        loop = asyncio.get_running_loop()
-        signed = await loop.run_in_executor(
-            None, lambda: self._client.create_order(order_args, None)
+        order_args = OrderArgs(
+            token_id=token_id,
+            price=snapped_price,
+            size=size,
+            side=Side.BUY,
         )
+        options = PartialCreateOrderOptions(tick_size=str(tick_size))
+        loop = asyncio.get_running_loop()
         resp = await loop.run_in_executor(
-            None, lambda: self._client.post_order(signed, OrderType.FAK)
+            None,
+            lambda: self._client.create_and_post_order(
+                order_args=order_args,
+                options=options,
+                order_type=OrderType.FAK,
+            ),
         )
         order_id = resp.get("orderID") or resp.get("id") or str(resp)
         logger.info("[LIVE] BUY order submitted -- id=%s", order_id)
@@ -147,7 +155,7 @@ class LiveOrderExecutor(OrderExecutor):
         size: float,
         tick_size: float,
     ) -> str:
-        from py_clob_client.clob_types import OrderArgs
+        from py_clob_client_v2 import OrderArgs, OrderType, PartialCreateOrderOptions, Side
 
         snapped_price = _round_to_tick(price, tick_size)
         logger.info(
@@ -155,10 +163,21 @@ class LiveOrderExecutor(OrderExecutor):
             token_id[-6:], snapped_price, size,
         )
 
-        order_args = OrderArgs(token_id=token_id, price=snapped_price, size=size, side="SELL")
+        order_args = OrderArgs(
+            token_id=token_id,
+            price=snapped_price,
+            size=size,
+            side=Side.SELL,
+        )
+        options = PartialCreateOrderOptions(tick_size=str(tick_size))
         loop = asyncio.get_running_loop()
         resp = await loop.run_in_executor(
-            None, lambda: self._client.create_and_post_order(order_args, None)
+            None,
+            lambda: self._client.create_and_post_order(
+                order_args=order_args,
+                options=options,
+                order_type=OrderType.GTC,
+            ),
         )
         order_id = resp.get("orderID") or resp.get("id") or str(resp)
         logger.info("[LIVE] SELL order accepted -- id=%s", order_id)
@@ -169,18 +188,27 @@ class LiveOrderExecutor(OrderExecutor):
         token_id: str,
         size: float,
     ) -> str:
-        from py_clob_client.clob_types import OrderArgs, OrderType
+        from py_clob_client_v2 import MarketOrderArgs, OrderType, PartialCreateOrderOptions, Side
 
         logger.info("[LIVE] Market SELL (stop)  token=...%s  size=%.2f", token_id[-6:], size)
 
-        # price=0.01: accept any fill down to 1 cent; FAK takes the best available bid.
-        order_args = OrderArgs(token_id=token_id, price=0.01, size=size, side="SELL")
-        loop = asyncio.get_running_loop()
-        signed = await loop.run_in_executor(
-            None, lambda: self._client.create_order(order_args, None)
+        # V2 market orders use MarketOrderArgs; size in shares (not USDC).
+        order_args = MarketOrderArgs(
+            token_id=token_id,
+            amount=size,
+            side=Side.SELL,
+            order_type=OrderType.FAK,
         )
+        # tick_size "0.01" is the standard for binary markets.
+        options = PartialCreateOrderOptions(tick_size="0.01")
+        loop = asyncio.get_running_loop()
         resp = await loop.run_in_executor(
-            None, lambda: self._client.post_order(signed, OrderType.FAK)
+            None,
+            lambda: self._client.create_and_post_market_order(
+                order_args=order_args,
+                options=options,
+                order_type=OrderType.FAK,
+            ),
         )
         order_id = resp.get("orderID") or resp.get("id") or str(resp)
         logger.info("[LIVE] Market SELL submitted -- id=%s", order_id)

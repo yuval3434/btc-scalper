@@ -130,38 +130,51 @@ class MarketSession:
 
 def _build_clob_client():
     """
-    Constructs and authenticates a py_clob_client.ClobClient.
+    Constructs and authenticates a py_clob_client_v2.ClobClient.
     Raises RuntimeError if credentials are missing.
+
+    NOTE: Polymarket migrated to V2 on 2026-04-28. The new SDK package is
+    `py_clob_client_v2`.  Key API changes vs the old SDK:
+      - `ApiCreds` → imported from `py_clob_client_v2`
+      - Credentials passed as `creds=` at construction time (no set_api_creds)
+      - `create_or_derive_api_creds` → `create_or_derive_api_key`
+      - `signature_type` and `funder` constructor params are removed
     """
-    from py_clob_client.client import ClobClient
+    from py_clob_client_v2 import ApiCreds, ClobClient
 
     if not config.PRIVATE_KEY:
         raise RuntimeError("PRIVATE_KEY is required for live trading.")
 
-    client = ClobClient(
-        host=config.CLOB_HOST,
-        chain_id=config.CHAIN_ID,
-        key=config.PRIVATE_KEY,
-        signature_type=0,       # standard EOA wallet
-        funder=config.FUNDER_ADDRESS or None,
-    )
-
     if config.API_KEY and config.API_SECRET and config.API_PASSPHRASE:
-        from py_clob_client.clob_types import ApiCreds
-        client.set_api_creds(
-            ApiCreds(
-                api_key=config.API_KEY,
-                api_secret=config.API_SECRET,
-                api_passphrase=config.API_PASSPHRASE,
-            )
+        creds = ApiCreds(
+            api_key=config.API_KEY,
+            api_secret=config.API_SECRET,
+            api_passphrase=config.API_PASSPHRASE,
         )
-        logger.info("CLOB client authenticated with existing L2 credentials.")
+        client = ClobClient(
+            host=config.CLOB_HOST,
+            chain_id=config.CHAIN_ID,
+            key=config.PRIVATE_KEY,
+            creds=creds,
+        )
+        logger.info("CLOB client (V2) authenticated with existing L2 credentials.")
     else:
-        # Derive L2 credentials from the private key (deterministic, one-time).
-        creds = client.create_or_derive_api_creds()
-        client.set_api_creds(creds)
+        # Step 1: L1-only client to derive API credentials.
+        l1_client = ClobClient(
+            host=config.CLOB_HOST,
+            chain_id=config.CHAIN_ID,
+            key=config.PRIVATE_KEY,
+        )
+        creds = l1_client.create_or_derive_api_key()
+        # Step 2: Fully-authenticated V2 client.
+        client = ClobClient(
+            host=config.CLOB_HOST,
+            chain_id=config.CHAIN_ID,
+            key=config.PRIVATE_KEY,
+            creds=creds,
+        )
         logger.info(
-            "L2 credentials derived from private key. "
+            "L2 credentials derived from private key (V2). "
             "Save these in .env to avoid re-derivation: key=%s", creds.api_key
         )
 
