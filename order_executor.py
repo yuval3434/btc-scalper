@@ -110,27 +110,43 @@ class LiveOrderExecutor(OrderExecutor):
         self._client = clob_client
 
     @staticmethod
-    def _make_order_call(client, order_args, tick_size_str, order_type):
+    def _build_options(tick_size_str: str):
         """
-        Calls create_and_post_order with proper keyword args.
+        Return an options object with .tick_size and .neg_risk attributes.
+        Tries known class names across py_clob_client versions; falls back to
+        a plain duck-typed object so create_order() never gets a bare string.
+        """
+        for cls_name in ("PartialCreateOrderOptions", "CreateOrderOptions"):
+            try:
+                import importlib
+                mod = importlib.import_module("py_clob_client.clob_types")
+                cls = getattr(mod, cls_name, None)
+                if cls is not None:
+                    return cls(tick_size=tick_size_str)
+            except Exception:
+                pass
 
-        Handles both py_clob_client API variants:
-          - New (>=0.18): create_and_post_order(args, options=..., order_type=...)
-          - Old (<0.18):  create_and_post_order(args, order_type)   [2nd arg = order_type]
+        # Duck-typed fallback: create_order() only needs .tick_size (and optionally .neg_risk).
+        class _Opts:
+            def __init__(self, ts: str) -> None:
+                self.tick_size = ts
+                self.neg_risk = False
+
+        return _Opts(tick_size_str)
+
+    @staticmethod
+    def _post_with_type(client, order_args, options, order_type):
         """
-        try:
-            from py_clob_client.clob_types import PartialCreateOrderOptions
-            return client.create_and_post_order(
-                order_args,
-                options=PartialCreateOrderOptions(tick_size=tick_size_str),
-                order_type=order_type,
-            )
-        except TypeError:
-            # Older API: second positional arg is order_type, no options param.
-            from py_clob_client.clob_types import OrderType as _OT  # noqa: F401
-            return client.create_and_post_order(order_args, order_type)
-        except ImportError:
-            return client.create_and_post_order(order_args, order_type)
+        This version of py_clob_client does NOT accept order_type in
+        create_and_post_order. For GTC we use it directly; for FAK we
+        call create_order + post_order so we can specify the type.
+        """
+        from py_clob_client.clob_types import OrderType
+        if order_type == OrderType.GTC:
+            return client.create_and_post_order(order_args, options)
+        else:
+            signed = client.create_order(order_args, options)
+            return client.post_order(signed, order_type)
 
     async def place_limit_buy(
         self,
@@ -148,11 +164,11 @@ class LiveOrderExecutor(OrderExecutor):
         )
 
         order_args = OrderArgs(token_id=token_id, price=snapped_price, size=size, side="BUY")
-        tick_str = str(tick_size)
+        options = self._build_options(str(tick_size))
         loop = asyncio.get_running_loop()
         resp = await loop.run_in_executor(
             None,
-            lambda: self._make_order_call(self._client, order_args, tick_str, OrderType.FAK),
+            lambda: self._post_with_type(self._client, order_args, options, OrderType.FAK),
         )
         order_id = resp.get("orderID") or resp.get("id") or str(resp)
         logger.info("[LIVE] BUY order submitted -- id=%s", order_id)
@@ -174,11 +190,11 @@ class LiveOrderExecutor(OrderExecutor):
         )
 
         order_args = OrderArgs(token_id=token_id, price=snapped_price, size=size, side="SELL")
-        tick_str = str(tick_size)
+        options = self._build_options(str(tick_size))
         loop = asyncio.get_running_loop()
         resp = await loop.run_in_executor(
             None,
-            lambda: self._make_order_call(self._client, order_args, tick_str, OrderType.GTC),
+            lambda: self._post_with_type(self._client, order_args, options, OrderType.GTC),
         )
         order_id = resp.get("orderID") or resp.get("id") or str(resp)
         logger.info("[LIVE] SELL order accepted -- id=%s", order_id)
@@ -195,10 +211,11 @@ class LiveOrderExecutor(OrderExecutor):
 
         # price=0.01: worst acceptable fill -- FAK will take whatever bid exists above it.
         order_args = OrderArgs(token_id=token_id, price=0.01, size=size, side="SELL")
+        options = self._build_options("0.01")
         loop = asyncio.get_running_loop()
         resp = await loop.run_in_executor(
             None,
-            lambda: self._make_order_call(self._client, order_args, "0.01", OrderType.FAK),
+            lambda: self._post_with_type(self._client, order_args, options, OrderType.FAK),
         )
         order_id = resp.get("orderID") or resp.get("id") or str(resp)
         logger.info("[LIVE] Market SELL submitted -- id=%s", order_id)
