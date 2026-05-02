@@ -138,9 +138,17 @@ def _build_clob_client():
       - `ApiCreds` → imported from `py_clob_client_v2`
       - Credentials passed as `creds=` at construction time (no set_api_creds)
       - `create_or_derive_api_creds` → `create_or_derive_api_key`
-      - `signature_type` and `funder` constructor params are removed
+
+    This bot uses a Polymarket proxy wallet setup:
+      - PRIVATE_KEY = Magic wallet (signs orders)
+      - FUNDER_ADDRESS = Polymarket proxy wallet (holds pUSD)
+      - signature_type = 1 (POLY_PROXY) so the CLOB resolves the proxy relationship
     """
     from py_clob_client_v2 import ApiCreds, ClobClient
+    from py_clob_client_v2.order_builder.builder import SignatureTypeV2
+
+    # Proxy wallet: Magic wallet signs on behalf of the Polymarket proxy wallet.
+    sig_type = SignatureTypeV2.POLY_PROXY if config.FUNDER_ADDRESS else SignatureTypeV2.EOA
 
     if not config.PRIVATE_KEY:
         raise RuntimeError("PRIVATE_KEY is required for live trading.")
@@ -156,6 +164,7 @@ def _build_clob_client():
             chain_id=config.CHAIN_ID,
             key=config.PRIVATE_KEY,
             creds=creds,
+            signature_type=sig_type,
             funder=config.FUNDER_ADDRESS or None,
         )
         logger.info("CLOB client (V2) authenticated with existing L2 credentials.")
@@ -165,6 +174,7 @@ def _build_clob_client():
             host=config.CLOB_HOST,
             chain_id=config.CHAIN_ID,
             key=config.PRIVATE_KEY,
+            signature_type=sig_type,
             funder=config.FUNDER_ADDRESS or None,
         )
         creds = l1_client.create_or_derive_api_key()
@@ -174,6 +184,7 @@ def _build_clob_client():
             chain_id=config.CHAIN_ID,
             key=config.PRIVATE_KEY,
             creds=creds,
+            signature_type=sig_type,
             funder=config.FUNDER_ADDRESS or None,
         )
         logger.info(
