@@ -109,6 +109,29 @@ class LiveOrderExecutor(OrderExecutor):
     def __init__(self, clob_client: "ClobClient") -> None:  # type: ignore[name-defined]
         self._client = clob_client
 
+    @staticmethod
+    def _make_order_call(client, order_args, tick_size_str, order_type):
+        """
+        Calls create_and_post_order with proper keyword args.
+
+        Handles both py_clob_client API variants:
+          - New (>=0.18): create_and_post_order(args, options=..., order_type=...)
+          - Old (<0.18):  create_and_post_order(args, order_type)   [2nd arg = order_type]
+        """
+        try:
+            from py_clob_client.clob_types import PartialCreateOrderOptions
+            return client.create_and_post_order(
+                order_args,
+                options=PartialCreateOrderOptions(tick_size=tick_size_str),
+                order_type=order_type,
+            )
+        except TypeError:
+            # Older API: second positional arg is order_type, no options param.
+            from py_clob_client.clob_types import OrderType as _OT  # noqa: F401
+            return client.create_and_post_order(order_args, order_type)
+        except ImportError:
+            return client.create_and_post_order(order_args, order_type)
+
     async def place_limit_buy(
         self,
         token_id: str,
@@ -116,26 +139,20 @@ class LiveOrderExecutor(OrderExecutor):
         size: float,
         tick_size: float,
     ) -> str:
-        from py_clob_client.clob_types import MarketOrderArgs, OrderType
+        from py_clob_client.clob_types import OrderArgs, OrderType
 
-        usdc_amount = round(price * size, 2)
+        snapped_price = _round_to_tick(price, tick_size)
         logger.info(
-            "[LIVE] Market BUY  token=...%s  price=%.4f  usdc=%.2f",
-            token_id[-6:], price, usdc_amount,
+            "[LIVE] Market BUY  token=...%s  price=%.4f  size=%.2f",
+            token_id[-6:], snapped_price, size,
         )
 
+        order_args = OrderArgs(token_id=token_id, price=snapped_price, size=size, side="BUY")
+        tick_str = str(tick_size)
         loop = asyncio.get_running_loop()
-        # Two-step: sign the market order, then post with FAK.
-        # price here is the worst acceptable fill price (best_ask passed from strategy).
-        signed = await loop.run_in_executor(
-            None,
-            lambda: self._client.create_market_order(
-                MarketOrderArgs(token_id=token_id, amount=usdc_amount, price=price, side="BUY")
-            ),
-        )
         resp = await loop.run_in_executor(
             None,
-            lambda: self._client.post_order(signed, OrderType.FAK),
+            lambda: self._make_order_call(self._client, order_args, tick_str, OrderType.FAK),
         )
         order_id = resp.get("orderID") or resp.get("id") or str(resp)
         logger.info("[LIVE] BUY order submitted -- id=%s", order_id)
@@ -149,10 +166,6 @@ class LiveOrderExecutor(OrderExecutor):
         tick_size: float,
     ) -> str:
         from py_clob_client.clob_types import OrderArgs, OrderType
-        try:
-            from py_clob_client.clob_types import PartialCreateOrderOptions
-        except ImportError:
-            PartialCreateOrderOptions = None  # type: ignore[assignment,misc]
 
         snapped_price = _round_to_tick(price, tick_size)
         logger.info(
@@ -162,25 +175,11 @@ class LiveOrderExecutor(OrderExecutor):
 
         order_args = OrderArgs(token_id=token_id, price=snapped_price, size=size, side="SELL")
         tick_str = str(tick_size)
-
         loop = asyncio.get_running_loop()
-        if PartialCreateOrderOptions is not None:
-            resp = await loop.run_in_executor(
-                None,
-                lambda: self._client.create_and_post_order(
-                    order_args,
-                    options=PartialCreateOrderOptions(tick_size=tick_str),
-                    order_type=OrderType.GTC,
-                ),
-            )
-        else:
-            resp = await loop.run_in_executor(
-                None,
-                lambda: self._client.create_and_post_order(
-                    order_args,
-                    OrderType.GTC,
-                ),
-            )
+        resp = await loop.run_in_executor(
+            None,
+            lambda: self._make_order_call(self._client, order_args, tick_str, OrderType.GTC),
+        )
         order_id = resp.get("orderID") or resp.get("id") or str(resp)
         logger.info("[LIVE] SELL order accepted -- id=%s", order_id)
         return order_id
@@ -190,21 +189,16 @@ class LiveOrderExecutor(OrderExecutor):
         token_id: str,
         size: float,
     ) -> str:
-        from py_clob_client.clob_types import MarketOrderArgs, OrderType
+        from py_clob_client.clob_types import OrderArgs, OrderType
 
         logger.info("[LIVE] Market SELL (stop)  token=...%s  size=%.2f", token_id[-6:], size)
 
+        # price=0.01: worst acceptable fill -- FAK will take whatever bid exists above it.
+        order_args = OrderArgs(token_id=token_id, price=0.01, size=size, side="SELL")
         loop = asyncio.get_running_loop()
-        # price=0.01 = accept any fill down to 1 cent (stop-loss, take whatever bid exists).
-        signed = await loop.run_in_executor(
-            None,
-            lambda: self._client.create_market_order(
-                MarketOrderArgs(token_id=token_id, amount=size, price=0.01, side="SELL")
-            ),
-        )
         resp = await loop.run_in_executor(
             None,
-            lambda: self._client.post_order(signed, OrderType.FAK),
+            lambda: self._make_order_call(self._client, order_args, "0.01", OrderType.FAK),
         )
         order_id = resp.get("orderID") or resp.get("id") or str(resp)
         logger.info("[LIVE] Market SELL submitted -- id=%s", order_id)
