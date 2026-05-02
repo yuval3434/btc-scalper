@@ -27,6 +27,7 @@ FIELDS = [
     "pnl",
     "session_pnl",
     "win",               # 1 or 0
+    "dry_run",           # 1 = paper, 0 = live
     "imbalance_at_entry",
     "mid_at_entry",
     "secs_to_expiry_at_entry",
@@ -47,6 +48,7 @@ def record(
     pnl: float,
     session_pnl: float,
     entry_time: datetime,
+    dry_run: bool,
     imbalance_at_entry: float,
     mid_at_entry: float,
     secs_to_expiry_at_entry: float,
@@ -70,6 +72,7 @@ def record(
         "pnl": round(pnl, 4),
         "session_pnl": round(session_pnl, 4),
         "win": 1 if pnl > 0 else 0,
+        "dry_run": 1 if dry_run else 0,
         "imbalance_at_entry": round(imbalance_at_entry, 3),
         "mid_at_entry": round(mid_at_entry, 4),
         "secs_to_expiry_at_entry": round(secs_to_expiry_at_entry, 1),

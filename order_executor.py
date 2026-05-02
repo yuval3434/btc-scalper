@@ -116,34 +116,34 @@ class LiveOrderExecutor(OrderExecutor):
         size: float,
         tick_size: float,
     ) -> str:
-        from py_clob_client.clob_types import OrderArgs, OrderType
+        from py_clob_client.clob_types import MarketOrderArgs, OrderType
 
-        snapped_price = _round_to_tick(price, tick_size)
+        # Use MarketOrderArgs (same as market sell) to avoid the py_clob_client
+        # bug where OrderArgs + FAK passes OrderType as 'options', causing
+        # AttributeError: 'str' object has no attribute 'tick_size'.
+        # For market buys, amount is USDC to spend (price * shares).
+        usdc_amount = round(price * size, 2)
         logger.info(
-            "[LIVE] Market BUY (FAK)  token=...%s  price=%.4f  size=%.2f",
+            "[LIVE] Market BUY (FAK)  token=...%s  price=%.4f  usdc=%.2f",
             token_id[-6:],
-            snapped_price,
-            size,
+            price,
+            usdc_amount,
         )
 
-        # FAK = Fill-And-Kill: fills immediately at the given price or better,
-        # cancels any unfilled portion. Used here because we're buying at the
-        # current ask (taker order), which GTC would reject as a price-crossing order.
         loop = asyncio.get_running_loop()
         resp = await loop.run_in_executor(
             None,
             lambda: self._client.create_and_post_order(
-                OrderArgs(
+                MarketOrderArgs(
                     token_id=token_id,
-                    price=snapped_price,
-                    size=size,
+                    amount=usdc_amount,
                     side="BUY",
                 ),
                 OrderType.FAK,
             ),
         )
         order_id = resp.get("orderID") or resp.get("id") or str(resp)
-        logger.info("[LIVE] BUY FAK order submitted -- id=%s", order_id)
+        logger.info("[LIVE] BUY order submitted -- id=%s", order_id)
         return order_id
 
     async def place_limit_sell(
