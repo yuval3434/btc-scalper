@@ -148,7 +148,7 @@ def _build_clob_client():
     from py_clob_client_v2.order_builder.builder import SignatureTypeV2
 
     # Proxy wallet: Magic wallet signs on behalf of the Polymarket proxy wallet.
-    sig_type = SignatureTypeV2.POLY_PROXY if config.FUNDER_ADDRESS else SignatureTypeV2.EOA
+    sig_type = SignatureTypeV2.POLY_GNOSIS_SAFE if config.FUNDER_ADDRESS else SignatureTypeV2.EOA
 
     if not config.PRIVATE_KEY:
         raise RuntimeError("PRIVATE_KEY is required for live trading.")
