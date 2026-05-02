@@ -147,7 +147,7 @@ class LiveOrderExecutor(OrderExecutor):
             side=Side.BUY,
             order_type=OrderType.FAK,
         )
-        options = PartialCreateOrderOptions(tick_size=str(tick_size))
+        options = PartialCreateOrderOptions(tick_size=str(tick_size), neg_risk=True)
         loop = asyncio.get_running_loop()
         resp = await loop.run_in_executor(
             None,
@@ -182,7 +182,7 @@ class LiveOrderExecutor(OrderExecutor):
             size=size,
             side=Side.SELL,
         )
-        options = PartialCreateOrderOptions(tick_size=str(tick_size))
+        options = PartialCreateOrderOptions(tick_size=str(tick_size), neg_risk=True)
         loop = asyncio.get_running_loop()
         resp = await loop.run_in_executor(
             None,
@@ -213,7 +213,7 @@ class LiveOrderExecutor(OrderExecutor):
             order_type=OrderType.FAK,
         )
         # tick_size "0.01" is the standard for binary markets.
-        options = PartialCreateOrderOptions(tick_size="0.01")
+        options = PartialCreateOrderOptions(tick_size="0.01", neg_risk=True)
         loop = asyncio.get_running_loop()
         resp = await loop.run_in_executor(
             None,
