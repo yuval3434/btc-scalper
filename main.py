@@ -175,7 +175,13 @@ def _build_clob_client():
         )
         logger.info(
             "L2 credentials derived from private key (V2). "
-            "Save these in .env to avoid re-derivation: key=%s", creds.api_key
+            "Save ALL THREE values in .env to avoid re-derivation:\n"
+            "  API_KEY=%s\n"
+            "  API_SECRET=%s\n"
+            "  API_PASSPHRASE=%s",
+            creds.api_key,
+            creds.api_secret,
+            creds.api_passphrase,
         )
 
     return client
