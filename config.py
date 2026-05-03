@@ -20,6 +20,14 @@ API_KEY: str = os.getenv("API_KEY", "")
 API_SECRET: str = os.getenv("API_SECRET", "")
 API_PASSPHRASE: str = os.getenv("API_PASSPHRASE", "")
 
+# Optional explicit CLOB order signature type:
+#   0 = direct EOA wallet
+#   1 = Polymarket email/Magic proxy wallet
+#   2 = browser wallet proxy / Gnosis Safe
+#   3 = EIP-1271 contract wallet (V2 only)
+SIGNATURE_TYPE_RAW: str = os.getenv("SIGNATURE_TYPE", "").strip()
+SIGNATURE_TYPE: int | None = int(SIGNATURE_TYPE_RAW) if SIGNATURE_TYPE_RAW else None
+
 # ---------------------------------------------------------------------------
 # Telegram notifications (optional)
 # ---------------------------------------------------------------------------

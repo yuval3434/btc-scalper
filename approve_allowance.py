@@ -23,12 +23,20 @@ FUNDER_ADDRESS  = os.getenv("FUNDER_ADDRESS", "") or None
 API_KEY         = os.getenv("API_KEY", "")
 API_SECRET      = os.getenv("API_SECRET", "")
 API_PASSPHRASE  = os.getenv("API_PASSPHRASE", "")
+SIGNATURE_TYPE  = os.getenv("SIGNATURE_TYPE", "").strip()
 
 if not PRIVATE_KEY:
     raise SystemExit("ERROR: PRIVATE_KEY not set in .env")
 
 print("Connecting to Polymarket V2 CLOB...")
 print(f"Funder address: {FUNDER_ADDRESS or '(same as signer)'}")
+
+sig_type = (
+    SignatureTypeV2(int(SIGNATURE_TYPE))
+    if SIGNATURE_TYPE
+    else (SignatureTypeV2.POLY_PROXY if FUNDER_ADDRESS else SignatureTypeV2.EOA)
+)
+print(f"Signature type: {sig_type.name} ({int(sig_type)})")
 
 creds = ApiCreds(
     api_key=API_KEY,
@@ -41,7 +49,7 @@ client = ClobClient(
     chain_id=CHAIN_ID,
     key=PRIVATE_KEY,
     creds=creds,
-    signature_type=SignatureTypeV2.POLY_PROXY if FUNDER_ADDRESS else SignatureTypeV2.EOA,
+    signature_type=sig_type,
     funder=FUNDER_ADDRESS,   # <-- critical: approves allowance for funder's pUSD
 )
 
