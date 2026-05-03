@@ -341,24 +341,20 @@ class ScalpingStrategy:
                 )
                 return
 
-        # Safety: cancel stale buy if market conditions have deteriorated.
-        bids, asks = await self._state.get_order_book()
-        if bids and asks:
-            best_bid = max(bids)
-            best_ask = min(asks)
-            mid = (best_bid + best_ask) / 2.0
-            imbalance = _compute_imbalance(bids, asks, config.IMBALANCE_LEVELS)
+        # For V2, we use Market (FAK) orders which execute instantly.
+        # We do NOT cancel them based on orderbook deterioration because they are 
+        # not resting limit orders. Instead, if no fill arrives within 5 seconds,
+        # assume the order was killed due to lack of liquidity.
+        async with self._state._lock:
+            pos = self._state.position
 
-            if not (config.MID_LOW <= mid <= config.MID_HIGH) or imbalance < 1.0:
+        if pos and pos.entry_time is None:
+            elapsed = pos.secs_to_expiry_at_entry - self._state.seconds_to_expiry()
+            if elapsed > 5.0:
                 logger.debug(
-                    "[Strategy:%s] Conditions deteriorated (mid=%.4f imbalance=%.3f). "
-                    "Cancelling pending buy %s.",
-                    self._slug,
-                    mid,
-                    imbalance,
-                    self._our_buy_order_id,
+                    "[Strategy:%s] No fill received for 5s. Assuming FAK order killed. Resetting.",
+                    self._slug
                 )
-                await self._executor.cancel_order(self._our_buy_order_id)
                 async with self._state._lock:
                     self._state.position = None
                     self._state.phase = PositionState.IDLE

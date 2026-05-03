@@ -233,8 +233,16 @@ class LiveOrderExecutor(OrderExecutor):
     async def cancel_order(self, order_id: str) -> bool:
         logger.info("[LIVE] Cancelling order id=%s", order_id)
         loop = asyncio.get_running_loop()
+
+        # The V2 SDK cancel_order method expects an order object/dict, not a string.
+        class CancelTarget(dict):
+            def __init__(self, oid):
+                super().__init__(orderID=oid, id=oid)
+                self.orderID = oid
+                self.id = oid
+
         try:
-            await loop.run_in_executor(None, lambda: self._client.cancel_order(order_id))
+            await loop.run_in_executor(None, lambda: self._client.cancel_order(CancelTarget(order_id)))
             logger.info("[LIVE] Order %s cancelled.", order_id)
             return True
         except Exception as exc:
