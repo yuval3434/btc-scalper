@@ -19,6 +19,11 @@ FUNDER_ADDRESS: str = os.getenv("FUNDER_ADDRESS", "")
 API_KEY: str = os.getenv("API_KEY", "")
 API_SECRET: str = os.getenv("API_SECRET", "")
 API_PASSPHRASE: str = os.getenv("API_PASSPHRASE", "")
+CLOB_FORCE_DERIVE_CREDS: bool = os.getenv("CLOB_FORCE_DERIVE_CREDS", "").lower() in (
+    "true",
+    "1",
+    "yes",
+)
 
 # Optional explicit CLOB order signature type:
 #   0 = direct EOA wallet

@@ -51,6 +51,8 @@ client = ClobClient(
     creds=creds,
     signature_type=sig_type,
     funder=FUNDER_ADDRESS,   # <-- critical: approves allowance for funder's pUSD
+    use_server_time=True,
+    retry_on_error=True,
 )
 
 params = BalanceAllowanceParams(asset_type=AssetType.COLLATERAL)

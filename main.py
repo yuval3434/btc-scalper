@@ -145,6 +145,7 @@ def _build_clob_client():
       - signature_type = POLY_PROXY so the CLOB resolves the proxy relationship
     """
     from py_clob_client_v2 import ApiCreds, ClobClient
+    from py_clob_client_v2.exceptions import PolyApiException
     from py_clob_client_v2.order_utils import SignatureTypeV2
 
     sig_type = (
@@ -156,51 +157,84 @@ def _build_clob_client():
     if not config.PRIVATE_KEY:
         raise RuntimeError("PRIVATE_KEY is required for live trading.")
 
-    if config.API_KEY and config.API_SECRET and config.API_PASSPHRASE:
+    def _client(creds: Optional[ApiCreds] = None):
+        return ClobClient(
+            host=config.CLOB_HOST,
+            chain_id=config.CHAIN_ID,
+            key=config.PRIVATE_KEY,
+            creds=creds,
+            signature_type=sig_type,
+            funder=config.FUNDER_ADDRESS or None,
+            use_server_time=True,
+            retry_on_error=True,
+        )
+
+    def _sync_config_creds(creds: ApiCreds) -> None:
+        config.API_KEY = creds.api_key
+        config.API_SECRET = creds.api_secret
+        config.API_PASSPHRASE = creds.api_passphrase
+
+    def _is_invalid_l2_creds(exc: PolyApiException) -> bool:
+        msg = str(exc.error_msg).lower()
+        return exc.status_code == 401 and (
+            "invalid api key" in msg
+            or "unauthorized" in msg
+            or "missing api key" in msg
+        )
+
+    def _derive_creds() -> ApiCreds:
+        # L1-only client derives the L2 key tied to this signer/funder/signature type.
+        creds = _client().create_or_derive_api_key()
+        _sync_config_creds(creds)
+        return creds
+
+    existing_creds_available = (
+        config.API_KEY and config.API_SECRET and config.API_PASSPHRASE
+    )
+
+    if existing_creds_available and not config.CLOB_FORCE_DERIVE_CREDS:
         creds = ApiCreds(
             api_key=config.API_KEY,
             api_secret=config.API_SECRET,
             api_passphrase=config.API_PASSPHRASE,
         )
-        client = ClobClient(
-            host=config.CLOB_HOST,
-            chain_id=config.CHAIN_ID,
-            key=config.PRIVATE_KEY,
-            creds=creds,
-            signature_type=sig_type,
-            funder=config.FUNDER_ADDRESS or None,
-        )
-        config.API_KEY = creds.api_key
-        config.API_SECRET = creds.api_secret
-        config.API_PASSPHRASE = creds.api_passphrase
+        client = _client(creds)
+        try:
+            # Cheap authenticated call. Catches stale V1/pre-migration creds before
+            # the strategy tries to place a live order.
+            client.get_open_orders(only_first_page=True)
+        except PolyApiException as exc:
+            if not _is_invalid_l2_creds(exc):
+                raise
+            logger.warning(
+                "Saved CLOB API credentials were rejected by V2 (%s). "
+                "Deriving fresh credentials from PRIVATE_KEY.",
+                exc,
+            )
+            creds = _derive_creds()
+            client = _client(creds)
+            client.get_open_orders(only_first_page=True)
+            logger.info(
+                "Fresh V2 L2 credentials derived. Update .env with:\n"
+                "  API_KEY=%s\n"
+                "  API_SECRET=%s\n"
+                "  API_PASSPHRASE=%s",
+                creds.api_key,
+                creds.api_secret,
+                creds.api_passphrase,
+            )
+        else:
+            _sync_config_creds(creds)
         logger.info(
-            "CLOB client (V2) authenticated with existing L2 credentials "
+            "CLOB client (V2) authenticated with valid existing L2 credentials "
             "(signature_type=%s funder=%s).",
             sig_type.name,
             config.FUNDER_ADDRESS or "signer",
         )
     else:
-        # Step 1: L1-only client to derive API credentials.
-        l1_client = ClobClient(
-            host=config.CLOB_HOST,
-            chain_id=config.CHAIN_ID,
-            key=config.PRIVATE_KEY,
-            signature_type=sig_type,
-            funder=config.FUNDER_ADDRESS or None,
-        )
-        creds = l1_client.create_or_derive_api_key()
-        config.API_KEY = creds.api_key
-        config.API_SECRET = creds.api_secret
-        config.API_PASSPHRASE = creds.api_passphrase
-        # Step 2: Fully-authenticated V2 client.
-        client = ClobClient(
-            host=config.CLOB_HOST,
-            chain_id=config.CHAIN_ID,
-            key=config.PRIVATE_KEY,
-            creds=creds,
-            signature_type=sig_type,
-            funder=config.FUNDER_ADDRESS or None,
-        )
+        creds = _derive_creds()
+        client = _client(creds)
+        client.get_open_orders(only_first_page=True)
         logger.info(
             "L2 credentials derived from private key (V2). "
             "Using signature_type=%s funder=%s. "
