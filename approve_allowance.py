@@ -10,6 +10,7 @@ You only need to run it again if you change wallets.
 
 import os
 from dotenv import load_dotenv
+from web3 import Web3
 from py_clob_client_v2 import ApiCreds, ClobClient
 from py_clob_client_v2.clob_types import AssetType, BalanceAllowanceParams
 from py_clob_client_v2.order_utils import SignatureTypeV2
@@ -28,13 +29,15 @@ SIGNATURE_TYPE  = os.getenv("SIGNATURE_TYPE", "").strip()
 if not PRIVATE_KEY:
     raise SystemExit("ERROR: PRIVATE_KEY not set in .env")
 
+funder_addr = Web3.to_checksum_address(FUNDER_ADDRESS) if FUNDER_ADDRESS else None
+
 print("Connecting to Polymarket V2 CLOB...")
-print(f"Funder address: {FUNDER_ADDRESS or '(same as signer)'}")
+print(f"Funder address: {funder_addr or '(same as signer)'}")
 
 sig_type = (
     SignatureTypeV2(int(SIGNATURE_TYPE))
     if SIGNATURE_TYPE
-    else (SignatureTypeV2.POLY_PROXY if FUNDER_ADDRESS else SignatureTypeV2.EOA)
+    else (SignatureTypeV2.POLY_PROXY if funder_addr else SignatureTypeV2.EOA)
 )
 print(f"Signature type: {sig_type.name} ({int(sig_type)})")
 
@@ -50,7 +53,7 @@ client = ClobClient(
     key=PRIVATE_KEY,
     creds=creds,
     signature_type=sig_type,
-    funder=FUNDER_ADDRESS,   # <-- critical: approves allowance for funder's pUSD
+    funder=funder_addr,      # <-- critical: approves allowance for funder's pUSD
     use_server_time=True,
     retry_on_error=True,
 )

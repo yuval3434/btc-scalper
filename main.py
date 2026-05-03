@@ -30,6 +30,7 @@ import sys
 from typing import Optional
 
 import aiohttp
+from web3 import Web3
 
 import config
 from market_finder import find_active_btc_5min_markets
@@ -148,10 +149,12 @@ def _build_clob_client():
     from py_clob_client_v2.exceptions import PolyApiException
     from py_clob_client_v2.order_utils import SignatureTypeV2
 
+    funder_addr = Web3.to_checksum_address(config.FUNDER_ADDRESS) if config.FUNDER_ADDRESS else None
+
     sig_type = (
         SignatureTypeV2(config.SIGNATURE_TYPE)
         if config.SIGNATURE_TYPE is not None
-        else (SignatureTypeV2.POLY_PROXY if config.FUNDER_ADDRESS else SignatureTypeV2.EOA)
+        else (SignatureTypeV2.POLY_PROXY if funder_addr else SignatureTypeV2.EOA)
     )
     builder_config = (
         BuilderConfig(builder_code=config.POLY_BUILDER_CODE)
@@ -169,7 +172,7 @@ def _build_clob_client():
             key=config.PRIVATE_KEY,
             creds=creds,
             signature_type=sig_type,
-            funder=config.FUNDER_ADDRESS or None,
+            funder=funder_addr,
             builder_config=builder_config,
             use_server_time=True,
             retry_on_error=True,
@@ -191,7 +194,7 @@ def _build_clob_client():
 
     def _derive_creds() -> ApiCreds:
         # L1-only client derives the L2 key tied to this signer/funder/signature type.
-        creds = _client().create_or_derive_api_key()
+        creds = _client().derive_api_key()
         _sync_config_creds(creds)
         return creds
 
@@ -236,7 +239,7 @@ def _build_clob_client():
             "CLOB client (V2) authenticated with valid existing L2 credentials "
             "(signature_type=%s funder=%s builder_code=%s).",
             sig_type.name,
-            config.FUNDER_ADDRESS or "signer",
+            funder_addr or "signer",
             "set" if config.POLY_BUILDER_CODE else "unset",
         )
     else:
@@ -251,7 +254,7 @@ def _build_clob_client():
             "  API_SECRET=%s\n"
             "  API_PASSPHRASE=%s",
             sig_type.name,
-            config.FUNDER_ADDRESS or "signer",
+            funder_addr or "signer",
             "set" if config.POLY_BUILDER_CODE else "unset",
             creds.api_key,
             creds.api_secret,
