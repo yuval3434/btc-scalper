@@ -288,6 +288,10 @@ class ScalpingStrategy:
             self._token_id, buy_price, shares, self._tick_size
         )
 
+        if not order_id:
+            logger.debug("[Strategy:%s] Buy order was killed or failed. Staying IDLE.", self._slug)
+            return
+
         # 9. Record in state and transition.
         async with self._state._lock:
             self._state.position = Position(

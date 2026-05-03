@@ -152,14 +152,22 @@ class LiveOrderExecutor(OrderExecutor):
         )
         options = PartialCreateOrderOptions(tick_size=str(tick_size), neg_risk=False)
         loop = asyncio.get_running_loop()
-        resp = await loop.run_in_executor(
-            None,
-            lambda: self._client.create_and_post_market_order(
-                order_args=order_args,
-                options=options,
-                order_type=OrderType.FAK,
-            ),
-        )
+        try:
+            resp = await loop.run_in_executor(
+                None,
+                lambda: self._client.create_and_post_market_order(
+                    order_args=order_args,
+                    options=options,
+                    order_type=OrderType.FAK,
+                ),
+            )
+        except Exception as exc:
+            if "no orders found to match" in str(exc).lower():
+                logger.warning("[LIVE] Market BUY killed (no liquidity match): %s", exc)
+            else:
+                logger.error("[LIVE] Market BUY failed: %s", exc)
+            return ""
+
         order_id = resp.get("orderID") or resp.get("id") or str(resp)
         logger.info("[LIVE] BUY order submitted -- id=%s", order_id)
         return order_id
@@ -218,14 +226,22 @@ class LiveOrderExecutor(OrderExecutor):
         # tick_size "0.01" is the standard for binary markets.
         options = PartialCreateOrderOptions(tick_size="0.01", neg_risk=False)
         loop = asyncio.get_running_loop()
-        resp = await loop.run_in_executor(
-            None,
-            lambda: self._client.create_and_post_market_order(
-                order_args=order_args,
-                options=options,
-                order_type=OrderType.FAK,
-            ),
-        )
+        try:
+            resp = await loop.run_in_executor(
+                None,
+                lambda: self._client.create_and_post_market_order(
+                    order_args=order_args,
+                    options=options,
+                    order_type=OrderType.FAK,
+                ),
+            )
+        except Exception as exc:
+            if "no orders found to match" in str(exc).lower():
+                logger.warning("[LIVE] Market SELL killed (no liquidity match): %s", exc)
+            else:
+                logger.error("[LIVE] Market SELL failed: %s", exc)
+            return ""
+
         order_id = resp.get("orderID") or resp.get("id") or str(resp)
         logger.info("[LIVE] Market SELL submitted -- id=%s", order_id)
         return order_id
