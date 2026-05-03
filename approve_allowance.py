@@ -12,6 +12,7 @@ import os
 from dotenv import load_dotenv
 from py_clob_client_v2 import ApiCreds, ClobClient
 from py_clob_client_v2.clob_types import AssetType, BalanceAllowanceParams
+from py_clob_client_v2.order_utils import SignatureTypeV2
 
 load_dotenv()
 
@@ -40,6 +41,7 @@ client = ClobClient(
     chain_id=CHAIN_ID,
     key=PRIVATE_KEY,
     creds=creds,
+    signature_type=SignatureTypeV2.POLY_PROXY if FUNDER_ADDRESS else SignatureTypeV2.EOA,
     funder=FUNDER_ADDRESS,   # <-- critical: approves allowance for funder's pUSD
 )
 
