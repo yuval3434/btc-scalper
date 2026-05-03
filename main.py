@@ -182,10 +182,11 @@ def _build_clob_client():
 
     def _is_invalid_l2_creds(exc: PolyApiException) -> bool:
         msg = str(exc.error_msg).lower()
-        return exc.status_code == 401 and (
+        return exc.status_code in (400, 401) and (
             "invalid api key" in msg
             or "unauthorized" in msg
             or "missing api key" in msg
+            or "invalid signature" in msg
         )
 
     def _derive_creds() -> ApiCreds:
