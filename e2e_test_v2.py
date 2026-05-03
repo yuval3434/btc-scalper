@@ -72,7 +72,7 @@ async def run_e2e() -> None:
     # Step 4: Cancel the order
     logger.info("\n--- Step 4: Cancel Limit Order ---")
     if order_id:
-        cancel_resp = client.cancel(order_id)
+        cancel_resp = client.cancel_order(order_id)
         logger.info(f"Cancel Response: {cancel_resp}")
     else:
         logger.warning("Could not extract order_id to cancel!")

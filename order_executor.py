@@ -234,7 +234,7 @@ class LiveOrderExecutor(OrderExecutor):
         logger.info("[LIVE] Cancelling order id=%s", order_id)
         loop = asyncio.get_running_loop()
         try:
-            await loop.run_in_executor(None, lambda: self._client.cancel(order_id))
+            await loop.run_in_executor(None, lambda: self._client.cancel_order(order_id))
             logger.info("[LIVE] Order %s cancelled.", order_id)
             return True
         except Exception as exc:
