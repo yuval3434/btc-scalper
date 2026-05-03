@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 GAMMA_API = "https://gamma-api.polymarket.com"
 DATA_API  = "https://data-api.polymarket.com"
-CLOB_API  = os.getenv("POLYMARKET_CLOB_HOST", "https://clob-v2.polymarket.com").rstrip("/")
+CLOB_API  = os.getenv("POLYMARKET_CLOB_HOST", "https://clob.polymarket.com").rstrip("/")
 
 SAFE_HEADERS = {"Accept-Encoding": "gzip, deflate"}
 

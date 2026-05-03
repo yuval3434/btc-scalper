@@ -45,7 +45,7 @@ TELEGRAM_CHAT_ID: str = os.getenv("TELEGRAM_CHAT_ID", "")
 # ---------------------------------------------------------------------------
 CLOB_HOST: str = os.getenv(
     "POLYMARKET_CLOB_HOST",
-    "https://clob-v2.polymarket.com",
+    "https://clob.polymarket.com",
 ).rstrip("/")
 GAMMA_API: str = "https://gamma-api.polymarket.com"
 MARKET_WS: str = "wss://ws-subscriptions-clob.polymarket.com/ws/market"
