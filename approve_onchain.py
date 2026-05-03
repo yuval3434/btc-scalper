@@ -27,6 +27,7 @@ if not PRIVATE_KEY:
 # Contract addresses from py_clob_client_v2.config (authoritative source)
 cfg = get_contract_config(CHAIN_ID)
 PUSD_ADDRESS = Web3.to_checksum_address(cfg.collateral)   # pUSD token
+USDC_E_ADDRESS = Web3.to_checksum_address("0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174")
 
 # All exchange contracts that need ERC-20 approval to spend pUSD
 EXCHANGE_CONTRACTS = [
@@ -77,15 +78,23 @@ pusd        = w3.eth.contract(address=PUSD_ADDRESS, abi=ERC20_ABI)
 decimals    = pusd.functions.decimals().call()
 raw_balance = pusd.functions.balanceOf(funder).call()
 balance     = raw_balance / 10**decimals
+
+usdce       = w3.eth.contract(address=USDC_E_ADDRESS, abi=ERC20_ABI)
+usdce_decs  = usdce.functions.decimals().call()
+usdce_bal   = usdce.functions.balanceOf(funder).call() / 10**usdce_decs
+
 pol_balance = w3.eth.get_balance(signer)
 
+print(f"\nUSDC.e balance: {usdce_bal:.6f}")
 print(f"\npUSD balance : {balance:.6f}")
 print(f"POL balance  : {w3.from_wei(pol_balance, 'ether'):.6f}")
 
 if pol_balance == 0:
     raise SystemExit("ERROR: No POL for gas. Send ~0.01 POL to your wallet first.")
-if balance == 0:
-    raise SystemExit("ERROR: No pUSD found in this wallet.")
+if balance == 0 and usdce_bal == 0:
+    raise SystemExit("ERROR: No pUSD or USDC.e found in this wallet.")
+if balance == 0 and usdce_bal > 0:
+    print("⚠️  You have USDC.e but 0 pUSD. Remember to wrap it via WRAP_ON_START=1")
 
 # ── Approve ───────────────────────────────────────────────────────────────────
 nonce = w3.eth.get_transaction_count(signer)
@@ -93,7 +102,7 @@ nonce = w3.eth.get_transaction_count(signer)
 for contract_addr in EXCHANGE_CONTRACTS:
     current = pusd.functions.allowance(funder, contract_addr).call()
     if current >= MAX_UINT256 // 2:
-        print(f"\n✅ Already approved: {contract_addr}")
+        print(f"✅ Already approved: {contract_addr}")
         continue
     print(f"\nApproving {contract_addr} ...")
     tx = pusd.functions.approve(contract_addr, MAX_UINT256).build_transaction({

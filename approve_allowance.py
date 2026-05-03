@@ -16,7 +16,7 @@ from py_clob_client_v2.order_utils import SignatureTypeV2
 
 load_dotenv()
 
-CLOB_HOST       = "https://clob.polymarket.com"
+CLOB_HOST       = os.getenv("POLYMARKET_CLOB_HOST", "https://clob-v2.polymarket.com").rstrip("/")
 CHAIN_ID        = 137
 PRIVATE_KEY     = os.getenv("PRIVATE_KEY", "")
 FUNDER_ADDRESS  = os.getenv("FUNDER_ADDRESS", "") or None

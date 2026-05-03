@@ -32,6 +32,7 @@ CLOB_FORCE_DERIVE_CREDS: bool = os.getenv("CLOB_FORCE_DERIVE_CREDS", "").lower()
 #   3 = EIP-1271 contract wallet (V2 only)
 SIGNATURE_TYPE_RAW: str = os.getenv("SIGNATURE_TYPE", "").strip()
 SIGNATURE_TYPE: int | None = int(SIGNATURE_TYPE_RAW) if SIGNATURE_TYPE_RAW else None
+POLY_BUILDER_CODE: str = os.getenv("POLY_BUILDER_CODE", "").strip()
 
 # ---------------------------------------------------------------------------
 # Telegram notifications (optional)
@@ -42,7 +43,10 @@ TELEGRAM_CHAT_ID: str = os.getenv("TELEGRAM_CHAT_ID", "")
 # ---------------------------------------------------------------------------
 # API endpoints
 # ---------------------------------------------------------------------------
-CLOB_HOST: str = "https://clob.polymarket.com"
+CLOB_HOST: str = os.getenv(
+    "POLYMARKET_CLOB_HOST",
+    "https://clob-v2.polymarket.com",
+).rstrip("/")
 GAMMA_API: str = "https://gamma-api.polymarket.com"
 MARKET_WS: str = "wss://ws-subscriptions-clob.polymarket.com/ws/market"
 USER_WS: str = "wss://ws-subscriptions-clob.polymarket.com/ws/user"
@@ -52,6 +56,11 @@ CHAIN_ID: int = 137  # Polygon mainnet
 # Operational mode
 # ---------------------------------------------------------------------------
 DRY_RUN: bool = os.getenv("DRY_RUN", "true").lower() in ("true", "1", "yes")
+
+WRAP_ON_START: bool = os.getenv("WRAP_ON_START", "0") in ("1", "true", "yes")
+POLYGON_RPC: str = os.getenv("POLYGON_RPC", "https://polygon-rpc.com")
+# Retrieve this from https://docs.polymarket.com/concepts/pusd
+COLLATERAL_ONRAMP_ADDRESS: str = os.getenv("COLLATERAL_ONRAMP_ADDRESS", "")
 
 # Max number of active market slots to trade simultaneously.
 MAX_CONCURRENT_MARKETS: int = int(os.getenv("MAX_CONCURRENT_MARKETS", "3"))

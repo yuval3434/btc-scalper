@@ -69,6 +69,7 @@ class OrderExecutor(ABC):
         price: float,
         size: float,
         tick_size: float,
+        user_usdc_balance: Optional[float] = None,
     ) -> str:
         """Submit a post-only GTC limit buy. Returns order_id."""
 
@@ -119,6 +120,7 @@ class LiveOrderExecutor(OrderExecutor):
         price: float,
         size: float,
         tick_size: float,
+        user_usdc_balance: Optional[float] = None,
     ) -> str:
         from decimal import ROUND_DOWN, Decimal
 
@@ -127,8 +129,8 @@ class LiveOrderExecutor(OrderExecutor):
         snapped_price = _round_to_tick(price, tick_size)
 
         # For FAK (market) BUY orders, the V2 API expects the USDC amount to
-        # spend (maker), NOT a price+size pair.  This avoids the
-        # "invalid amounts ... max 2 decimals maker / 4 decimals taker" error
+        # spend, NOT a price+size pair.  This avoids the
+        # "invalid amounts ... max 2 decimals / 4 decimals" error
         # that arises when price*size produces more than 2 d.p. in float math.
         usdc_amount = float(
             (Decimal(str(snapped_price)) * Decimal(str(size))).quantize(
@@ -146,6 +148,7 @@ class LiveOrderExecutor(OrderExecutor):
             amount=usdc_amount,   # USDC to spend — API resolves share qty
             side=Side.BUY,
             order_type=OrderType.FAK,
+            user_usdc_balance=user_usdc_balance or 0,
         )
         options = PartialCreateOrderOptions(tick_size=str(tick_size), neg_risk=True)
         loop = asyncio.get_running_loop()
@@ -278,6 +281,7 @@ class DryRunOrderExecutor(OrderExecutor):
         price: float,
         size: float,
         tick_size: float,
+        user_usdc_balance: Optional[float] = None,
     ) -> str:
         snapped = _round_to_tick(price, tick_size)
         order_id = self._next_id("BUY")

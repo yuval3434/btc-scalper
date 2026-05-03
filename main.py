@@ -144,7 +144,7 @@ def _build_clob_client():
       - FUNDER_ADDRESS = Polymarket proxy wallet (holds pUSD)
       - signature_type = POLY_PROXY so the CLOB resolves the proxy relationship
     """
-    from py_clob_client_v2 import ApiCreds, ClobClient
+    from py_clob_client_v2 import ApiCreds, BuilderConfig, ClobClient
     from py_clob_client_v2.exceptions import PolyApiException
     from py_clob_client_v2.order_utils import SignatureTypeV2
 
@@ -152,6 +152,11 @@ def _build_clob_client():
         SignatureTypeV2(config.SIGNATURE_TYPE)
         if config.SIGNATURE_TYPE is not None
         else (SignatureTypeV2.POLY_PROXY if config.FUNDER_ADDRESS else SignatureTypeV2.EOA)
+    )
+    builder_config = (
+        BuilderConfig(builder_code=config.POLY_BUILDER_CODE)
+        if config.POLY_BUILDER_CODE
+        else None
     )
 
     if not config.PRIVATE_KEY:
@@ -165,6 +170,7 @@ def _build_clob_client():
             creds=creds,
             signature_type=sig_type,
             funder=config.FUNDER_ADDRESS or None,
+            builder_config=builder_config,
             use_server_time=True,
             retry_on_error=True,
         )
@@ -227,9 +233,10 @@ def _build_clob_client():
             _sync_config_creds(creds)
         logger.info(
             "CLOB client (V2) authenticated with valid existing L2 credentials "
-            "(signature_type=%s funder=%s).",
+            "(signature_type=%s funder=%s builder_code=%s).",
             sig_type.name,
             config.FUNDER_ADDRESS or "signer",
+            "set" if config.POLY_BUILDER_CODE else "unset",
         )
     else:
         creds = _derive_creds()
@@ -237,13 +244,14 @@ def _build_clob_client():
         client.get_open_orders(only_first_page=True)
         logger.info(
             "L2 credentials derived from private key (V2). "
-            "Using signature_type=%s funder=%s. "
+            "Using signature_type=%s funder=%s builder_code=%s. "
             "Save ALL THREE values in .env to avoid re-derivation:\n"
             "  API_KEY=%s\n"
             "  API_SECRET=%s\n"
             "  API_PASSPHRASE=%s",
             sig_type.name,
             config.FUNDER_ADDRESS or "signer",
+            "set" if config.POLY_BUILDER_CODE else "unset",
             creds.api_key,
             creds.api_secret,
             creds.api_passphrase,
@@ -316,6 +324,11 @@ async def run_bot() -> None:
     # Build executor once (shared across sessions when in dry-run mode,
     # but each session needs its own because DryRunOrderExecutor holds a
     # fill callback per-strategy). We build one per session below.
+    
+    if config.WRAP_ON_START and not config.DRY_RUN:
+        import wrap_usdce
+        logger.info("WRAP_ON_START is enabled. Checking USDC.e balance...")
+        wrap_usdce.wrap_usdce_if_needed()
 
     clob_client = None
     if not config.DRY_RUN:

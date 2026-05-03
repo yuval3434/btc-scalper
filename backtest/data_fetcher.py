@@ -12,17 +12,21 @@ All requests use Accept-Encoding: gzip, deflate to avoid the Brotli issue.
 import asyncio
 import json
 import logging
+import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional
 import aiohttp
+from dotenv import load_dotenv
+
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
 GAMMA_API = "https://gamma-api.polymarket.com"
 DATA_API  = "https://data-api.polymarket.com"
-CLOB_API  = "https://clob.polymarket.com"
+CLOB_API  = os.getenv("POLYMARKET_CLOB_HOST", "https://clob-v2.polymarket.com").rstrip("/")
 
 SAFE_HEADERS = {"Accept-Encoding": "gzip, deflate"}
 

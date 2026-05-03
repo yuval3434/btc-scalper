@@ -1,6 +1,6 @@
 aiohttp>=3.12
 eth-account>=0.13
-py-clob-client-v2>=1.0.0
+py-clob-client-v2==1.0.0
 python-dotenv>=1.1
 web3>=7.15
 websockets>=10.4
