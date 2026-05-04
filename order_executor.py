@@ -126,6 +126,20 @@ class LiveOrderExecutor(OrderExecutor):
 
         from py_clob_client_v2 import MarketOrderArgs, OrderType, PartialCreateOrderOptions, Side
 
+        loop = asyncio.get_running_loop()
+
+        if user_usdc_balance is None or user_usdc_balance <= 0:
+            try:
+                from py_clob_client_v2.clob_types import AssetType, BalanceAllowanceParams
+                bal_params = BalanceAllowanceParams(asset_type=AssetType.COLLATERAL)
+                bal_info = await loop.run_in_executor(
+                    None, lambda: self._client.get_balance_allowance(params=bal_params)
+                )
+                user_usdc_balance = float(bal_info["balance"]) / 1e6
+            except Exception as exc:
+                logger.error("[LIVE] Failed to fetch balance for FAK buy: %s", exc)
+                user_usdc_balance = 0
+
         snapped_price = _round_to_tick(price, tick_size)
 
         # For FAK (market) BUY orders, the V2 API expects the USDC amount to
@@ -151,7 +165,6 @@ class LiveOrderExecutor(OrderExecutor):
             user_usdc_balance=user_usdc_balance or 0,
         )
         options = PartialCreateOrderOptions(tick_size=str(tick_size), neg_risk=False)
-        loop = asyncio.get_running_loop()
         try:
             resp = await loop.run_in_executor(
                 None,
